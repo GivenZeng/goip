@@ -1,16 +1,10 @@
 A service used to get an IP's country based on ipip.
 
-## Build
+## Build & Run
 ```
 make goip
-```
-
-## Run
-```
-mkdir bin
 cp -r etc_sample bin/etc
 make run
-```
 
 
 ## Usage
