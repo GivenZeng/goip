@@ -11,7 +11,7 @@ make run
 ```
 curl "http://127.0.0.1:18010/ip?ip=123.123.123.123"
 
-// if you want to specify port: bin/goip -port 127.0.0.1:your_port
+// if you want a specified port: bin/goip -port 127.0.0.1:your_port
 ```
 
 response:
