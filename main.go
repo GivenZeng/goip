@@ -105,6 +105,6 @@ func main() {
 	http.HandleFunc("/", srv.ipHandler)
 	http.HandleFunc("/ip", srv.ipHandler)
 
-	fmt.Println("start serve at: " + *port + "........")
+	fmt.Println("start serving at: " + *port + "........")
 	log.Fatal(http.ListenAndServe(*port, nil))
 }
