@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -94,13 +95,16 @@ func (srv *IPSrv) ipHandler(w http.ResponseWriter, req *http.Request) {
 }
 
 func main() {
+	port := flag.String("port", "127.0.0.1:18010", "api port, default: 127.0.0.1:18010")
+	flag.Parse()
 	srv, err := NewSrv()
 	if err != nil {
 		panic(err)
 	}
 
 	http.HandleFunc("/", srv.ipHandler)
-	port := "127.0.0.1:18010"
-	fmt.Println("start serve at: " + port + "........")
-	log.Fatal(http.ListenAndServe(port, nil))
+	http.HandleFunc("/ip", srv.ipHandler)
+
+	fmt.Println("start serve at: " + *port + "........")
+	log.Fatal(http.ListenAndServe(*port, nil))
 }
