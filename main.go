@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/ipipdotnet/ipdb-go"
@@ -62,7 +63,7 @@ func (srv *IPSrv) ipHandler(w http.ResponseWriter, req *http.Request) {
 	// fmt.Println(srv.db.FindInfo("2001:250:200::", "CN")) // return CityInfo
 	// fmt.Println(srv.db.Find("1.1.1.1", "CN"))       // return []string
 	// fmt.Println(srv.db.FindInfo("127.0.0.1", "CN")) // return CityInfo
-	res := &Response{}
+	res := &Response{Msg: "success"}
 	defer func() {
 		resBytes, err := json.Marshal(res)
 		if err != nil {
@@ -74,8 +75,11 @@ func (srv *IPSrv) ipHandler(w http.ResponseWriter, req *http.Request) {
 	// get ip and validate
 	ipStr := req.URL.Query().Get("ip")
 	if ipStr == "" {
-		res = &Response{Msg: "ip should not be empty, example = http://domain/ip?ip=123.123.123.123"}
-		return
+		parts := strings.Split(req.RemoteAddr, ":")
+		if len(parts) > 1 {
+			ipStr = parts[0]
+		}
+		res.Msg = "ip should not be empty, example = http://domain/ip?ip=123.123.123.123"
 	}
 	// find ip msg
 	rst, err := srv.db.FindMap(ipStr, "CN")
@@ -87,7 +91,6 @@ func (srv *IPSrv) ipHandler(w http.ResponseWriter, req *http.Request) {
 	res.Country = rst["country_name"]
 	res.City = rst["city_name"]
 	res.Region = rst["region_name"]
-	res.Msg = "success"
 }
 
 func main() {
