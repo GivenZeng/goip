@@ -30,3 +30,9 @@ response:
     "Msg": "success"
 }
 ```
+
+
+## My server
+```
+curl https://common.givenzeng.cn/ip?ip=123.123.123.123
+```
