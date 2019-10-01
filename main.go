@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -12,7 +13,10 @@ import (
 	"time"
 
 	"github.com/ipipdotnet/ipdb-go"
+	geoip2 "github.com/oschwald/geoip2-golang"
 )
+
+const usage = "curl http://127.0.0.1:18010/ipip?ip=123.123.123.123 or \ncurl http://127.0.0.1:18010/mmdb?ip=123.123.123.123"
 
 type Response struct {
 	IP      string
@@ -24,7 +28,8 @@ type Response struct {
 }
 
 type IPSrv struct {
-	db *ipdb.City
+	ipip *ipdb.City
+	mmdb *geoip2.Reader
 }
 
 func NewSrv() (srv *IPSrv, err error) {
@@ -32,12 +37,24 @@ func NewSrv() (srv *IPSrv, err error) {
 	if err != nil {
 		return nil, err
 	}
+	// ipip database
 	ipdbFilePath := binPath + "/etc/ipip.ipdb"
-	db, err := ipdb.NewCity(ipdbFilePath)
+	ipip, err := ipdb.NewCity(ipdbFilePath)
 	if err != nil {
 		return nil, err
 	}
-	srv = &IPSrv{db: db}
+
+	// maxmind database
+	mmdbPath := binPath + "/etc/GeoLite2-Country.mmdb"
+	mmdb, err := geoip2.Open(mmdbPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	srv = &IPSrv{
+		ipip: ipip,
+		mmdb: mmdb,
+	}
 
 	go func() {
 		// update ipdb
@@ -45,7 +62,7 @@ func NewSrv() (srv *IPSrv, err error) {
 		for {
 			<-ticker.C
 			fmt.Println("reload ipdb: " + ipdbFilePath)
-			err := srv.db.Reload(ipdbFilePath) // 更新 ipdb 文件后可调用 Reload 方法重新加载内容
+			err := srv.ipip.Reload(ipdbFilePath) // 更新 ipdb 文件后可调用 Reload 方法重新加载内容
 			if err != nil {
 				fmt.Println(err)
 			}
@@ -55,15 +72,6 @@ func NewSrv() (srv *IPSrv, err error) {
 }
 
 func (srv *IPSrv) ipHandler(w http.ResponseWriter, req *http.Request) {
-	// fmt.Println(db.IsIPv4())    // check database support ip type
-	// fmt.Println(db.IsIPv6())    // check database support ip type
-	// fmt.Println(db.BuildTime()) // database build time
-	// fmt.Println(db.Languages()) // database support language
-	// fmt.Println(srv.db.Fields()) // database support fields
-
-	// fmt.Println(srv.db.FindInfo("2001:250:200::", "CN")) // return CityInfo
-	// fmt.Println(srv.db.Find("1.1.1.1", "CN"))       // return []string
-	// fmt.Println(srv.db.FindInfo("127.0.0.1", "CN")) // return CityInfo
 	res := &Response{Msg: "success"}
 	defer func() {
 		resBytes, err := json.Marshal(res)
@@ -72,7 +80,6 @@ func (srv *IPSrv) ipHandler(w http.ResponseWriter, req *http.Request) {
 		}
 		fmt.Fprintf(w, string(resBytes))
 	}()
-
 	// get ip and validate
 	ipStr := req.URL.Query().Get("ip")
 	if ipStr == "" {
@@ -83,7 +90,7 @@ func (srv *IPSrv) ipHandler(w http.ResponseWriter, req *http.Request) {
 		res.Msg = "ip should not be empty, example = http://domain/ip?ip=123.123.123.123"
 	}
 	// find ip msg
-	rst, err := srv.db.FindMap(ipStr, "CN")
+	rst, err := srv.ipip.FindMap(ipStr, "CN")
 	if err != nil {
 		res = &Response{Msg: "error occured: " + err.Error()}
 		return
@@ -94,6 +101,32 @@ func (srv *IPSrv) ipHandler(w http.ResponseWriter, req *http.Request) {
 	res.Region = rst["region_name"]
 }
 
+func (srv *IPSrv) mmdbHandler(w http.ResponseWriter, req *http.Request) {
+	res := &Response{Msg: "success"}
+	defer func() {
+		resBytes, err := json.Marshal(res)
+		if err != nil {
+			fmt.Println(err)
+		}
+		fmt.Fprintf(w, string(resBytes))
+	}()
+	ipStr := req.URL.Query().Get("ip")
+	if ipStr == "" {
+		parts := strings.Split(req.RemoteAddr, ":")
+		if len(parts) > 1 {
+			ipStr = parts[0]
+		}
+		res.Msg = "ip should not be empty, example = http://domain/mmdb?ip=123.123.123.123"
+	}
+	ip := net.ParseIP(ipStr)
+	record, err := srv.mmdb.City(ip)
+	if err != nil {
+		log.Fatal(err)
+	}
+	res.IP = ipStr
+	res.Country = record.Country.Names["en"]
+	res.Region = res.Country
+}
 func main() {
 	port := flag.String("port", "127.0.0.1:18010", "api port, default: 127.0.0.1:18010")
 	flag.Parse()
@@ -104,7 +137,10 @@ func main() {
 
 	http.HandleFunc("/", srv.ipHandler)
 	http.HandleFunc("/ip", srv.ipHandler)
+	http.HandleFunc("/ipip", srv.ipHandler)
+	http.HandleFunc("/maxmind", srv.mmdbHandler)
+	http.HandleFunc("/mmdb", srv.mmdbHandler)
 
-	fmt.Println("start serving at: " + *port + "........")
+	fmt.Println("start serving at: " + *port + "........\n" + usage + "\n")
 	log.Fatal(http.ListenAndServe(*port, nil))
 }
