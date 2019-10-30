@@ -92,7 +92,7 @@ func (srv *IPSrv) ipHandler(w http.ResponseWriter, req *http.Request) {
 	// find ip msg
 	rst, err := srv.ipip.FindMap(ipStr, "CN")
 	if err != nil {
-		res = &Response{Msg: "error occured: " + err.Error()}
+		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 	res.IP = ipStr
@@ -122,6 +122,7 @@ func (srv *IPSrv) mmdbHandler(w http.ResponseWriter, req *http.Request) {
 	record, err := srv.mmdb.City(ip)
 	if err != nil {
 		log.Fatal(err)
+		w.WriteHeader(http.StatusBadRequest)
 	}
 	res.IP = ipStr
 	res.Country = record.Country.Names["en"]
