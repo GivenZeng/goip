@@ -73,61 +73,66 @@ func NewSrv() (srv *IPSrv, err error) {
 
 func (srv *IPSrv) ipHandler(w http.ResponseWriter, req *http.Request) {
 	res := &Response{Msg: "success"}
-	defer func() {
-		resBytes, err := json.Marshal(res)
-		if err != nil {
-			fmt.Println(err)
-		}
-		fmt.Fprintf(w, string(resBytes))
-	}()
 	// get ip and validate
-	ipStr := req.URL.Query().Get("ip")
-	if ipStr == "" {
-		parts := strings.Split(req.RemoteAddr, ":")
-		if len(parts) > 1 {
-			ipStr = parts[0]
-		}
-		res.Msg = "ip should not be empty, example = http://domain/ip?ip=123.123.123.123"
+	ip := getIP(req)
+	if ip == nil || ip.String() == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
 	}
 	// find ip msg
-	rst, err := srv.ipip.FindMap(ipStr, "CN")
+	rst, err := srv.ipip.FindMap(ip.String(), "CN")
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	res.IP = ipStr
+	res.IP = ip.String()
 	res.Country = rst["country_name"]
 	res.City = rst["city_name"]
 	res.Region = rst["region_name"]
+
+	resBytes, err := json.Marshal(res)
+	if err != nil {
+		fmt.Println(err)
+	}
+	fmt.Fprintf(w, string(resBytes))
 }
 
 func (srv *IPSrv) mmdbHandler(w http.ResponseWriter, req *http.Request) {
 	res := &Response{Msg: "success"}
-	defer func() {
-		resBytes, err := json.Marshal(res)
-		if err != nil {
-			fmt.Println(err)
-		}
-		fmt.Fprintf(w, string(resBytes))
-	}()
+	ip := getIP(req)
+	if ip == nil || ip.String() == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	record, err := srv.mmdb.City(ip)
+	if err != nil {
+		log.Fatal(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	res.IP = ip.String()
+	res.Country = record.Country.Names["en"]
+	res.Region = res.Country
+
+	resBytes, err := json.Marshal(res)
+	if err != nil {
+		fmt.Println(err)
+	}
+	fmt.Fprintf(w, string(resBytes))
+}
+
+func getIP(req *http.Request) (ip net.IP) {
 	ipStr := req.URL.Query().Get("ip")
 	if ipStr == "" {
 		parts := strings.Split(req.RemoteAddr, ":")
 		if len(parts) > 1 {
 			ipStr = parts[0]
 		}
-		res.Msg = "ip should not be empty, example = http://domain/mmdb?ip=123.123.123.123"
 	}
-	ip := net.ParseIP(ipStr)
-	record, err := srv.mmdb.City(ip)
-	if err != nil {
-		log.Fatal(err)
-		w.WriteHeader(http.StatusBadRequest)
-	}
-	res.IP = ipStr
-	res.Country = record.Country.Names["en"]
-	res.Region = res.Country
+	ip = net.ParseIP(ipStr)
+	return ip
 }
+
 func main() {
 	port := flag.String("port", "127.0.0.1:18010", "api port, default: 127.0.0.1:18010")
 	flag.Parse()
