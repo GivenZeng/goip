@@ -32,4 +32,4 @@ response:
 
 
 ## other
-you can download the ip database from [ipip](https://www.ipip.net/product/ip.html#ipv4city)，and replace the database file in directory etc
+you can download the newest ip database from [ipip](https://www.ipip.net/product/ip.html#ipv4city)，and replace the database file in directory etc
